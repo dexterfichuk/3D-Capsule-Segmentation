@@ -8,25 +8,22 @@ def CapsNetBasic(input_shape, n_class=2):
     x = layers.Input(shape=input_shape)
 
     # Layer 1: Just a conventional Conv2D layer
-    conv1 = layers.Conv3D(filters=1, kernel_size=5, strides=1, padding='same', activation='relu', name='conv1')(x)
+    conv1 = layers.Conv3D(filters=256, kernel_size=5, strides=1, padding='same', activation='relu', name='conv1')(x)
 
     # Reshape layer to be 1 capsule x [filters] atoms
-    print('Conv 1 Shape:', conv1.get_shape())
     _, H, W, D, C = conv1.get_shape()
     conv1_reshaped = layers.Reshape((H.value, W.value, D.value, 1, C.value))(conv1)
-    print('Conv Reshaped Shape:', conv1_reshaped.get_shape())
 
     # Layer 1: Primary Capsule: Conv cap with routing 1
     primary_caps = ConvCapsuleLayer(kernel_size=5, num_capsule=8, num_atoms=32, strides=1, padding='same',
                                     routings=1, name='primarycaps')(conv1_reshaped)
-    print("Primary Caps", primary_caps.get_shape())
     # Layer 4: Convolutional Capsule: 1x1
     seg_caps = ConvCapsuleLayer(kernel_size=1, num_capsule=1, num_atoms=16, strides=1, padding='same',
                                 routings=3, name='seg_caps')(primary_caps)
 
     # Layer 4: This is an auxiliary layer to replace each capsule with its length. Just to match the true label's shape.
     out_seg = Length(num_classes=n_class, seg=True, name='out_seg')(seg_caps)
-    print('Out Seg', out_seg.get_shape())
+
     # Decoder network.
     _, H, W, D, C, A = seg_caps.get_shape()
     y = layers.Input(shape=input_shape[:-1]+(1,))

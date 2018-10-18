@@ -24,11 +24,9 @@ class Length(layers.Layer):
         self.seg = seg
 
     def call(self, inputs, **kwargs):
-        print('Length call inuts shape', inputs.get_shape())
         if inputs.get_shape().ndims == 6:
             assert inputs.get_shape()[-2].value == 1, 'Error: Must have num_capsules = 1 going into Length'
             inputs = K.squeeze(inputs, axis=-2)
-            print('Squeezed length shape', inputs.get_shape())
         return K.expand_dims(tf.norm(inputs, axis=-1), axis=-1)
 
     def compute_output_shape(self, input_shape):
@@ -116,7 +114,7 @@ class ConvCapsuleLayer(layers.Layer):
                                  self.input_num_atoms, self.num_capsule * self.num_atoms],
                                  initializer=self.kernel_initializer,
                                  name='W')
-        print('Num Capsule and num atom', self.num_capsule, self.num_atoms)
+
         self.b = self.add_weight(shape=[1, 1, 1, self.num_capsule, self.num_atoms],
                                  initializer=initializers.constant(0.1),
                                  name='b')
@@ -124,20 +122,19 @@ class ConvCapsuleLayer(layers.Layer):
         self.built = True
 
     def call(self, input_tensor, training=None):
-        print('Before Transpose', input_tensor.get_shape())
         input_transposed = tf.transpose(input_tensor, [4, 0, 1, 2, 3, 5])
-        print('Transposed', input_transposed.get_shape())
+
         input_shape = K.shape(input_transposed)
-        print('Input sshape', input_shape.get_shape())
+
         input_tensor_reshaped = K.reshape(input_transposed, [
             input_shape[0] * input_shape[1], self.input_height, 
                       self.input_width, self.input_depth, self.input_num_atoms])
-        print('Filter Shape (W)', self.W.get_shape())
+
         input_tensor_reshaped.set_shape((None, self.input_height, self.input_width, self.input_depth, self.input_num_atoms))
-        print('Tensor Reshaped', input_tensor_reshaped.get_shape())
+
         conv = K.conv3d(input_tensor_reshaped, self.W, (self.strides, self.strides, self.strides),
                         padding=self.padding, data_format='channels_last', dilation_rate=(1, 1, 1))
-        print('Conv Shape', conv.get_shape())
+
         votes_shape = K.shape(conv)
         _, conv_height, conv_width, conv_depth, _ = conv.get_shape()
         
@@ -145,11 +142,10 @@ class ConvCapsuleLayer(layers.Layer):
                                  self.num_capsule, self.num_atoms])
         votes.set_shape((None, self.input_num_capsule, conv_height.value, conv_width.value, conv_depth.value,
                          self.num_capsule, self.num_atoms))
-        print('Votes Shape', votes.get_shape())
+
         logit_shape = K.stack([
             input_shape[1], input_shape[0], votes_shape[1], votes_shape[2], votes_shape[3], self.num_capsule])
-        print('Logit Shape', logit_shape.get_shape())
-        print('B shape', self.b.get_shape())
+
         biases_replicated = K.tile(self.b, [conv_height.value, conv_width.value, conv_depth.value, 1, 1])
 
         activations = update_routing(
@@ -193,7 +189,6 @@ class ConvCapsuleLayer(layers.Layer):
       
 def update_routing(votes, biases, logit_shape, num_dims, input_dim, output_dim,
                     num_routing):
-    print('Updating Routing')
     if num_dims == 7:
         votes_t_shape = [6, 0, 1, 2, 3, 4, 5]
         r_t_shape = [1, 2, 3, 4, 5, 6, 0]
@@ -204,7 +199,6 @@ def update_routing(votes, biases, logit_shape, num_dims, input_dim, output_dim,
         raise NotImplementedError('Not implemented')
 
     votes_trans = tf.transpose(votes, votes_t_shape)
-    print('Votes Transposed', votes_trans.get_shape())
     _, _, _, height, width, depth, caps = votes_trans.get_shape()
 
     def _body(i, logits, activations):
